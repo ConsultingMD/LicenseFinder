@@ -159,10 +159,24 @@ RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 4F4EA0AAE5
     apt-get update &&\
     apt-get install -y php7.4-cli &&\
     php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" &&\
-    php -r "if (hash_file('sha384', 'composer-setup.php') === 'e5325b19b381bfd88ce90a5ddb7823406b2a38cff6bb704b0acc289a09c8128d4a8ce2bbafcd1fcbdc38666422fe2806') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;" &&\
+    php -r "if (hash_file('sha384', 'composer-setup.php') === '572cb359b56ad9ae52f9c23d29d4b19a040af10d6635642e646a7caa7b96de717ce683bd797a92ce99e5929cc51e7d5f') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;" &&\
     php composer-setup.php &&\
     php -r "unlink('composer-setup.php');" &&\
     mv composer.phar /usr/bin/composer
+
+# install miniconda
+# See https://docs.conda.io/en/latest/miniconda.html#installing
+# for latest SHA.
+WORKDIR /tmp
+RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh &&\
+  ref='879457af6a0bf5b34b48c12de31d4df0ee2f06a8e68768e5758c3293b2daf688' &&\
+  sha=`openssl sha256 Miniconda3-latest-Linux-x86_64.sh | cut -d' ' -f2` &&\
+  ([ "$sha" = "${ref}" ] || (echo "Verification failed: ${sha} != ${ref}"; false)) &&\
+  (echo; echo "yes") | sh Miniconda3-latest-Linux-x86_64.sh
+
+# -------------------------------
+# Grand Rounds specific installs:
+# -------------------------------
 
 # install libraries that most services will need, even to bundle or its equivalent
 RUN apt-get install -y  mysql-client postgresql-client libmysqlclient-dev libxml2-dev libpq-dev
@@ -177,6 +191,10 @@ RUN apt-get install -y  libmagic-dev
 # itself to install correct bundler based on Gemfile, or move all Rails apps
 # to using LF in library form (better long-term answer anyway)
 RUN gem install bundler --version=1.17.3
+
+# ---------------------------------
+# Back to Pivotal
+# ---------------------------------
 
 # install license_finder
 COPY . /LicenseFinder
