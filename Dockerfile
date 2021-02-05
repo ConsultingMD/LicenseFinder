@@ -154,30 +154,31 @@ RUN wget -q https://packages.microsoft.com/config/ubuntu/16.04/packages-microsof
   sudo apt-get update &&\
   sudo apt-get install -y dotnet-runtime-2.1 dotnet-sdk-2.1 dotnet-sdk-2.2 dotnet-sdk-3.0 dotnet-sdk-3.1
 
+# install Composer
 RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 4F4EA0AAE5267A6C &&\
     echo "deb http://ppa.launchpad.net/ondrej/php/ubuntu xenial main" | sudo tee /etc/apt/sources.list.d/php.list &&\
     apt-get update &&\
     apt-get install -y php7.4-cli &&\
+    EXPECTED_COMPOSER_INSTALLER_CHECKSUM="$(curl --silent https://composer.github.io/installer.sig)" &&\
     php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" &&\
-    php -r "if (hash_file('sha384', 'composer-setup.php') === '572cb359b56ad9ae52f9c23d29d4b19a040af10d6635642e646a7caa7b96de717ce683bd797a92ce99e5929cc51e7d5f') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;" &&\
+    ACTUAL_COMPOSER_INSTALLER_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")" &&\
+    test "${ACTUAL_COMPOSER_INSTALLER_CHECKSUM}" = "${EXPECTED_COMPOSER_INSTALLER_CHECKSUM}" || (echo "ERROR: Invalid installer checksum" >&2; false) &&\
     php composer-setup.php &&\
     php -r "unlink('composer-setup.php');" &&\
     mv composer.phar /usr/bin/composer
 
 # install miniconda
-# See https://docs.conda.io/en/latest/miniconda.html#installing
-# for latest SHA.
+# See https://docs.conda.io/en/latest/miniconda_hashes.html
+# for latest versions and SHAs.
 WORKDIR /tmp
-RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh &&\
-  ref='879457af6a0bf5b34b48c12de31d4df0ee2f06a8e68768e5758c3293b2daf688' &&\
-  sha=`openssl sha256 Miniconda3-latest-Linux-x86_64.sh | cut -d' ' -f2` &&\
+RUN  \
+  conda_installer=Miniconda3-py38_4.9.2-Linux-x86_64.sh &&\
+  ref='1314b90489f154602fd794accfc90446111514a5a72fe1f71ab83e07de9504a7' &&\
+  wget -q https://repo.anaconda.com/miniconda/${conda_installer} &&\
+  sha=`openssl sha256 "${conda_installer}" | cut -d' ' -f2` &&\
   ([ "$sha" = "${ref}" ] || (echo "Verification failed: ${sha} != ${ref}"; false)) &&\
-  (echo; echo "yes") | sh Miniconda3-latest-Linux-x86_64.sh
-
-# -------------------------------
-# Grand Rounds specific installs:
-# -------------------------------
-
+  (echo; echo "yes") | sh "${conda_installer}"
+ 
 # install libraries that most services will need, even to bundle or its equivalent
 RUN apt-get install -y  mysql-client postgresql-client libmysqlclient-dev libxml2-dev libpq-dev
 
@@ -191,10 +192,6 @@ RUN apt-get install -y  libmagic-dev
 # itself to install correct bundler based on Gemfile, or move all Rails apps
 # to using LF in library form (better long-term answer anyway)
 RUN gem install bundler --version=1.17.3
-
-# ---------------------------------
-# Back to Pivotal
-# ---------------------------------
 
 # install license_finder
 COPY . /LicenseFinder
